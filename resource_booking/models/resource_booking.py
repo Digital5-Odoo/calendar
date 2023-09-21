@@ -13,6 +13,25 @@ from odoo.exceptions import ValidationError
 from odoo.addons.resource.models.resource import Intervals
 
 
+def _merge_intervals(intervals):
+    # Merge intervals where stop == start of next interval,
+    # assuming that the intervals are ordererd.
+    intervals = [list(tup) for tup in intervals._items]
+    # Handle 23:59:59:99999
+    for i in range(len(intervals)):
+        if intervals[i][1].microsecond == 999999:
+            intervals[i][1] += timedelta(microseconds=1)
+    # Begin with the last interval, to safely delete it if needed.
+    for i in range(len(intervals) - 1, 0, -1):
+        current_start = intervals[i][0]
+        current_stop = intervals[i][1]
+        previous_stop = intervals[i - 1][1]
+        if current_start == previous_stop:
+            intervals[i - 1][1] = current_stop
+            del intervals[i]
+            debug = True
+    return Intervals([tuple(interval) for interval in intervals])
+
 def _availability_is_fitting(available_intervals, start_dt, end_dt):
     # Test whether the stretch between start_dt and end_dt is an uninterrupted
     # stretch of time as determined by `available_intervals`.
@@ -446,7 +465,8 @@ class ResourceBooking(models.Model):
         start = start.replace(hour=0, minute=0, second=0, microsecond=0)
         lang = self.env["res.lang"]._lang_get(self.env.lang or self.env.user.lang)
         weekday_names = dict(lang.fields_get(["week_start"])["week_start"]["selection"])
-        slots = self._get_available_slots(start, start + month1)
+        booking_duration = timedelta(hours=self.duration)
+        slots = self._get_available_slots(start, start + month1 + booking_duration)
         return {
             "booking": self,
             "calendar": calendar.Calendar(int(lang.week_start) - 1),
@@ -495,30 +515,34 @@ class ResourceBooking(models.Model):
     def _get_available_slots(self, start_dt, end_dt):
         """Return available slots for scheduling current booking."""
         result = {}
-        now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
         slot_duration = timedelta(hours=self.type_id.duration)
         booking_duration = timedelta(hours=self.duration)
-        current = max(
+        now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
+        start_dt = max(
             start_dt, now + timedelta(hours=self.type_id.modifications_deadline)
         )
-        available_intervals = self._get_intervals(current, end_dt)
-        while current and current < end_dt:
-            slot_start = self.type_id._get_next_slot_start(current)
-            if current != slot_start:
-                current = slot_start
-                continue
-            current_interval = Intervals([(current, current + booking_duration, self)])
-            for start, end, _meta in available_intervals & current_interval:
-                if end - start == booking_duration:
-                    result.setdefault(current.date(), [])
-                    result[current.date()].append(current)
-                # I actually only care about the 1st interval, if any
-                break
-            current += slot_duration
+        # available_times should start with the beginning of the work day,
+        # to compute each slot based on the beginning of the work day.
+        workday_min = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        available_times = self._get_intervals(workday_min, end_dt)
+        available_times = _merge_intervals(available_times)
+        # Loop through available times and append tested start/stop to the result.
+        test_start = False
+        for available_start, available_stop, meta in available_times._items:
+            test_start = available_start
+            while test_start and test_start < available_stop:
+                test_stop = test_start + booking_duration
+                if test_start >= start_dt and test_start >= available_start and test_stop <= available_stop:
+                    if not result.get(test_start.date()):
+                        result.setdefault(test_start.date(), [])
+                    result[test_start.date()].append(test_start)
+                test_start += slot_duration
         return result
 
     def _get_intervals(self, start_dt, end_dt, combination=None):
-        """Get available intervals for this booking."""
+        """Get available intervals for this booking,
+        based on the calendar of the booking type
+        and the calendar(s) of the relevant resource combination(s)."""
         # Get all intervals except those from current booking
         try:
             booking_id = self.id or self._origin.id or -1

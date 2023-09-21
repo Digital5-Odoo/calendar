@@ -127,44 +127,6 @@ class ResourceBookingType(models.Model):
         combinations = rels.mapped("combination_id")
         return combinations
 
-    def _get_next_slot_start(self, start_dt):
-        """Slot start as it would come from the beginning of work hours.
-
-        Returns a `datetime` object indicating the next slot start (which could
-        be the same as `start_dt` if it matches), or `False` if no slot is
-        found in the next 2 weeks.
-
-        If the RBT doesn't have a calendar, it returns `start_dt`, unaltered,
-        because there's no way to know when a slot would start.
-        """
-        duration_delta = timedelta(hours=self.duration)
-        end_dt = start_dt + duration_delta
-        workday_min = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        # Detached compatibility with hr_holidays_public
-        res_calendar = self.resource_calendar_id.with_context(
-            exclude_public_holidays=True
-        )
-        resource = self.env["resource.resource"]
-        attendance_intervals = res_calendar._attendance_intervals_batch(
-            workday_min, end_dt
-        )[resource.id]
-        try:
-            workday_start, valid_end, _meta = attendance_intervals._items[-1]
-            if valid_end != end_dt:
-                # Interval found, but without enough time; same as no interval
-                raise IndexError
-        except IndexError:
-            try:
-                # Returns `False` if no slot is found in the next 2 weeks
-                return (
-                    res_calendar.plan_hours(self.duration, end_dt, compute_leaves=True)
-                    - duration_delta
-                )
-            except TypeError:
-                return False
-        time_passed = valid_end - duration_delta - workday_start
-        return workday_start + duration_delta * ceil(time_passed / duration_delta)
-
     def action_open_bookings(self):
         FloatTimeParser = self.env["ir.qweb.field.float_time"]
         return {

@@ -722,7 +722,7 @@ class BackendCase(TransactionCase):
         # Requester and combination must be suggested
         self.assertEqual(
             rb._message_get_suggested_recipients(),
-            {rb.id: [(rb.partner_id.id, "some customer", "Requester")]},
+            {rb.id: [(rb.partner_id.id, "some customer", None, "Requester")]},
         )
 
     def test_creating_rbt_has_tags(self):
