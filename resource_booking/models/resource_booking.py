@@ -515,7 +515,7 @@ class ResourceBooking(models.Model):
     def _get_available_slots(self, start_dt, end_dt):
         """Return available slots for scheduling current booking."""
         result = {}
-        slot_duration = timedelta(hours=self.type_id.duration)
+        slot_duration = timedelta(hours=self.type_id.slot_duration)
         booking_duration = timedelta(hours=self.duration)
         now = fields.Datetime.context_timestamp(self, fields.Datetime.now())
         start_dt = max(
