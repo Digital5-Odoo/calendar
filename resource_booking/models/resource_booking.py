@@ -570,10 +570,12 @@ class ResourceBooking(models.Model):
             analyzing_booking=booking_id, exclude_public_holidays=True
         )
         # RBT calendar uses no resources to restrict bookings
-        resource = self.env["resource.resource"]
-        result = booking.type_id.resource_calendar_id._work_intervals_batch(
-            start_dt, end_dt
-        )[resource.id]
+        if booking.type_id:
+            result = booking.type_id.resource_calendar_id._work_intervals_batch(
+                start_dt, end_dt
+            )[False]
+        else:
+            result = Intervals([])
         # Restrict with the chosen combination, or to at least one of the
         # available ones
         combinations = (
