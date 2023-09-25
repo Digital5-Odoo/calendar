@@ -203,6 +203,7 @@
             <search>
                 <field name="partner_id" />
                 <field name="type_id" />
+                <field name="combination_id" />
                 <filter
                     name="is_mine"
                     string="Involving me"
