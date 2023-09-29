@@ -14,7 +14,7 @@ from odoo.addons.resource.models.resource import Intervals
 
 
 def _merge_intervals(intervals):
-    # Merge intervals where stop == start of next interval,
+    # Merge intervals where start of current interval == stop of previous interval,
     # assuming that the intervals are ordererd.
     intervals = [list(tup) for tup in intervals._items]
     # Handle 23:59:59:99999
@@ -29,10 +29,17 @@ def _merge_intervals(intervals):
         if current_start == previous_stop:
             intervals[i - 1][1] = current_stop
             del intervals[i]
-            debug = True
     return Intervals([tuple(interval) for interval in intervals])
 
-def _availability_is_fitting(available_intervals, start_dt, end_dt):
+def _availability_is_fitting(available_intervals, start_dt, stop_dt):
+    available_intervals = _merge_intervals(available_intervals)
+    for available_start, available_stop, meta in available_intervals._items:
+        if start_dt >= available_start and stop_dt <= available_stop:
+            return True
+    return False
+
+def _availability_is_fitting_legacy(available_intervals, start_dt, end_dt):
+    """ I keep the old method, since part of it may be needed in the new method. """
     # Test whether the stretch between start_dt and end_dt is an uninterrupted
     # stretch of time as determined by `available_intervals`.
     #
@@ -538,14 +545,14 @@ class ResourceBooking(models.Model):
         start_dt = max(
             start_dt, now + timedelta(hours=self.type_id.modifications_deadline)
         )
-        # available_times should start with the beginning of the work day,
+        # available_intervals should start with the beginning of the work day,
         # to compute each slot based on the beginning of the work day.
         workday_min = start_dt.replace(hour=0, minute=0, second=0, microsecond=0)
-        available_times = self._get_intervals(workday_min, end_dt)
-        available_times = _merge_intervals(available_times)
+        available_intervals = self._get_intervals(workday_min, end_dt)
+        available_intervals = _merge_intervals(available_intervals)
         # Loop through available times and append tested start/stop to the result.
         test_start = False
-        for available_start, available_stop, meta in available_times._items:
+        for available_start, available_stop, meta in available_intervals._items:
             test_start = available_start
             while test_start and test_start < available_stop:
                 test_stop = test_start + booking_duration
