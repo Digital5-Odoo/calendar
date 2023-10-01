@@ -19,7 +19,8 @@ def _merge_intervals(intervals):
     intervals = [list(tup) for tup in intervals._items]
     # Handle 23:59:59:99999
     for i in range(len(intervals)):
-        if intervals[i][1].microsecond == 999999:
+        stop = intervals[i][1]
+        if stop.hour == 23 and stop.minute == 59 and stop.second == 59 and stop.microsecond == 999999:
             intervals[i][1] += timedelta(microseconds=1)
     # Begin with the last interval, to safely delete it if needed.
     for i in range(len(intervals) - 1, 0, -1):
