@@ -25,7 +25,6 @@
         "mail",
         "portal",
         "resource",
-        "web_calendar_slot_duration",
     ],
     "data": [
         "data/mail.xml",
