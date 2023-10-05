@@ -1,8 +1,6 @@
 # Copyright 2021 Tecnativa - Jairo Llopis
 # License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl).
 
-from datetime import timedelta
-from math import ceil
 from random import random
 
 from odoo import _, api, fields, models
@@ -59,16 +57,12 @@ class ResourceBookingType(models.Model):
     duration = fields.Float(
         required=True,
         default=0.5,  # 30 minutes
-        help=(
-            "Booking default duration."
-        ),
+        help=("Booking default duration."),
     )
     slot_duration = fields.Float(
         required=True,
         default=0.5,  # 30 minutes
-        help=(
-            "Interval offered to start each resource booking."
-        ),
+        help=("Interval offered to start each resource booking."),
     )
     location = fields.Char()
     modifications_deadline = fields.Float(

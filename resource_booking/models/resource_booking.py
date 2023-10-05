@@ -20,7 +20,12 @@ def _merge_intervals(intervals):
     # Handle 23:59:59:99999
     for i in range(len(intervals)):
         stop = intervals[i][1]
-        if stop.hour == 23 and stop.minute == 59 and stop.second == 59 and stop.microsecond == 999999:
+        if (
+            stop.hour == 23
+            and stop.minute == 59
+            and stop.second == 59
+            and stop.microsecond == 999999
+        ):
             intervals[i][1] += timedelta(microseconds=1)
     # Begin with the last interval, to safely delete it if needed.
     for i in range(len(intervals) - 1, 0, -1):
@@ -32,15 +37,18 @@ def _merge_intervals(intervals):
             del intervals[i]
     return Intervals([tuple(interval) for interval in intervals])
 
+
 def _availability_is_fitting(available_intervals, start_dt, stop_dt):
     available_intervals = _merge_intervals(available_intervals)
-    for available_start, available_stop, meta in available_intervals._items:
+    for item in available_intervals._items:
+        available_start, available_stop = item[0], item[1]
         if start_dt >= available_start and stop_dt <= available_stop:
             return True
     return False
 
+
 def _availability_is_fitting_legacy(available_intervals, start_dt, end_dt):
-    """ I keep the old method, since part of it may be needed in the new method. """
+    """I keep the old method, since part of it may be needed in the new method."""
     # Test whether the stretch between start_dt and end_dt is an uninterrupted
     # stretch of time as determined by `available_intervals`.
     #
@@ -164,7 +172,7 @@ class ResourceBooking(models.Model):
         store=True,
         compute="_compute_partner_ids",
         inverse="_inverse_partner_ids",
-        help="E.g. multiple people in a room. Used by sale_resource_booking_period"
+        help="E.g. multiple people in a room. Used by sale_resource_booking_period",
     )
     user_id = fields.Many2one(
         comodel_name="res.users",
@@ -553,11 +561,16 @@ class ResourceBooking(models.Model):
         available_intervals = _merge_intervals(available_intervals)
         # Loop through available times and append tested start/stop to the result.
         test_start = False
-        for available_start, available_stop, meta in available_intervals._items:
+        for item in available_intervals._items:
+            available_start, available_stop = item[0], item[1]
             test_start = available_start
             while test_start and test_start < available_stop:
                 test_stop = test_start + booking_duration
-                if test_start >= start_dt and test_start >= available_start and test_stop <= available_stop:
+                if (
+                    test_start >= start_dt
+                    and test_start >= available_start
+                    and test_stop <= available_stop
+                ):
                     if not result.get(test_start.date()):
                         result.setdefault(test_start.date(), [])
                     result[test_start.date()].append(test_start)
